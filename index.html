@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prescription Maker</title>
+<meta name="theme-color" content="#1f5fa8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rx Maker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --ink: #1d2433; --muted: #5d6677;
+    --line: #d9dde5; --accent: #1f5fa8; --accent-ink: #ffffff; --danger: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151b; --card: #1b2029; --ink: #e7eaf0; --muted: #9aa3b3;
+      --line: #2e3542; --accent: #6aa5ea; --accent-ink: #0d1420; --danger: #ef7b72;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151b; --card: #1b2029; --ink: #e7eaf0; --muted: #9aa3b3;
+    --line: #2e3542; --accent: #6aa5ea; --accent-ink: #0d1420; --danger: #ef7b72;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px; margin-bottom: 14px; }
+  h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  details > summary { cursor: pointer; font-weight: 600; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸ "; color: var(--muted); }
+  details[open] > summary::before { content: "▾ "; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line);
+    border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; }
+  textarea { resize: vertical; min-height: 60px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .full { grid-column: 1 / -1; }
+  .med { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; position: relative; }
+  .med-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .med-head b { font-size: 14px; }
+  .med .grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  button { font: inherit; border-radius: 7px; padding: 9px 14px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.link { border: none; background: none; color: var(--danger); padding: 4px 6px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .sig-wrap { border: 1px dashed var(--line); border-radius: 8px; background: #fff; max-width: 420px; }
+  canvas#sig { display: block; width: 100%; height: 140px; touch-action: none; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .actions { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+  .err { color: var(--danger); font-size: 13px; min-height: 1em; }
+  #savedNote { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Prescription Maker</h1>
+  <p class="sub">Fill in the patient and medicines, then download a signed PDF. Nothing leaves this device.</p>
+
+  <section>
+    <details id="docDetails">
+      <summary>Doctor &amp; clinic details <span id="savedNote"></span></summary>
+      <div class="grid" style="margin-top:12px">
+        <div><label for="docName">Doctor name</label><input id="docName" placeholder="e.g. Dr. Full Name"></div>
+        <div><label for="docQual">Qualifications</label><input id="docQual" placeholder="e.g. MBBS, MD"></div>
+        <div><label for="docReg">Registration no.</label><input id="docReg" placeholder="Medical council reg. no."></div>
+        <div><label for="clinicName">Clinic / hospital</label><input id="clinicName"></div>
+        <div class="full"><label for="clinicAddr">Address</label><input id="clinicAddr"></div>
+        <div><label for="clinicPhone">Phone</label><input id="clinicPhone"></div>
+        <div><label for="clinicEmail">Email</label><input id="clinicEmail"></div>
+        <div class="full">
+          <label>Signature</label>
+          <div class="sig-wrap"><canvas id="sig"></canvas></div>
+          <div class="row" style="margin-top:8px">
+            <button type="button" id="sigClear">Clear</button>
+            <button type="button" id="sigUploadBtn">Upload image…</button>
+            <input type="file" id="sigUpload" accept="image/*" hidden>
+            <span class="hint">Sign with a finger or mouse, or upload a scan of your signature.</span>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button type="button" class="primary" id="saveDoc">Save details on this device</button>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <h2>Patient</h2>
+    <div class="grid">
+      <div class="full"><label for="pName">Patient name *</label><input id="pName" autocomplete="off"></div>
+      <div><label for="pAge">Age *</label><input id="pAge" placeholder="e.g. 34 or 8 months"></div>
+      <div><label for="pGender">Gender *</label>
+        <select id="pGender"><option value="">Select…</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div><label for="pDate">Date</label><input id="pDate" type="date"></div>
+      <div class="full"><label for="pDiag">Provisional diagnosis</label><textarea id="pDiag" rows="2"></textarea></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Medicines</h2>
+    <div id="meds"></div>
+    <button type="button" id="addMed">+ Add medicine</button>
+  </section>
+
+  <section>
+    <h2>Advice &amp; follow-up <span style="text-transform:none;letter-spacing:0">(optional)</span></h2>
+    <div class="grid">
+      <div class="full"><label for="advice">Advice / notes</label><textarea id="advice" rows="2"></textarea></div>
+      <div><label for="followUp">Follow-up</label><input id="followUp" placeholder="e.g. after 5 days"></div>
+    </div>
+  </section>
+
+  <div class="err" id="err"></div>
+  <div class="actions">
+    <button type="button" class="primary" id="genPdf">Download PDF</button>
+    <button type="button" id="newRx">New prescription</button>
+  </div>
+</main>
+
+<template id="medTpl">
+  <div class="med">
+    <div class="med-head"><b class="med-num"></b><button type="button" class="link rm">Remove</button></div>
+    <div class="grid">
+      <div class="full"><label>Medicine name</label><input class="m-name" placeholder="e.g. Tab. Paracetamol"></div>
+      <div><label>Dose / strength</label><input class="m-dose" placeholder="e.g. 650 mg"></div>
+      <div><label>Frequency</label><input class="m-freq" list="freqList" placeholder="e.g. 1-0-1"></div>
+      <div><label>Duration</label><input class="m-dur" placeholder="e.g. 5 days"></div>
+      <div class="full"><label>How to take</label><input class="m-instr" list="instrList" placeholder="e.g. After food"></div>
+    </div>
+  </div>
+</template>
+<datalist id="freqList">
+  <option value="1-0-0 (Morning)"><option value="0-0-1 (Night)"><option value="1-0-1 (Twice daily)">
+  <option value="1-1-1 (Thrice daily)"><option value="1-1-1-1 (Four times daily)"><option value="SOS (As needed)">
+  <option value="Once a week">
+</datalist>
+<datalist id="instrList">
+  <option value="After food"><option value="Before food"><option value="Empty stomach"><option value="At bedtime">
+  <option value="With water"><option value="Apply locally"><option value="Dissolve in water">
+</datalist>
+
+<script src="vendor/jspdf-2.5.1.umd.min.js"></script>
+<script src="vendor/jspdf-autotable-3.8.2.min.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const DOC_FIELDS = ["docName","docQual","docReg","clinicName","clinicAddr","clinicPhone","clinicEmail"];
+  const STORE_KEY = "rxmaker.doctor.v1";
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } },
+    set(v) { try { localStorage.setItem(STORE_KEY, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  };
+
+  // ---------- Signature pad ----------
+  const canvas = $("sig"), ctx = canvas.getContext("2d");
+  let sigDirty = false, drawing = false, sigImage = null; // sigImage: dataURL if uploaded/restored
+  function sizeCanvas() {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    if (!r.width) return;
+    const snapshot = sigDirty ? canvas.toDataURL() : null;
+    canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#10213d";
+    if (snapshot) drawImageFit(snapshot);
+  }
+  let sigImgEl = null; // full-resolution copy of an uploaded/restored signature
+  function drawImageFit(src) {
+    const img = new Image();
+    if (src === sigImage) sigImgEl = img;
+    img.onload = () => {
+      const w = canvas.width / (window.devicePixelRatio || 1), h = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, w, h);
+      const s = Math.min(w / img.width, h / img.height);
+      ctx.drawImage(img, (w - img.width * s) / 2, (h - img.height * s) / 2, img.width * s, img.height * s);
+      sigDirty = true;
+    };
+    img.src = src;
+  }
+  function pos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  canvas.addEventListener("pointerdown", (e) => { drawing = true; canvas.setPointerCapture(e.pointerId);
+    const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+  canvas.addEventListener("pointermove", (e) => { if (!drawing) return; const p = pos(e);
+    ctx.lineTo(p.x, p.y); ctx.stroke(); sigDirty = true; sigImage = null; });
+  ["pointerup","pointercancel","pointerleave"].forEach(ev => canvas.addEventListener(ev, () => { drawing = false; }));
+  $("sigClear").onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); sigDirty = false; sigImage = null; };
+  $("sigUploadBtn").onclick = () => $("sigUpload").click();
+  $("sigUpload").onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { sigImage = rd.result; drawImageFit(rd.result); };
+    rd.readAsDataURL(f);
+  };
+  // Trim transparent/white margins so the signature sits nicely in the PDF.
+  function signatureDataURL() {
+    if (!sigDirty) return null;
+    let src = canvas;
+    if (sigImage && sigImgEl && sigImgEl.complete && sigImgEl.naturalWidth) {
+      src = document.createElement("canvas"); src.width = sigImgEl.naturalWidth; src.height = sigImgEl.naturalHeight;
+      src.getContext("2d").drawImage(sigImgEl, 0, 0);
+    }
+    const sctx = src.getContext("2d");
+    const w = src.width, h = src.height, data = sctx.getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, a = data[i + 3];
+      const ink = a > 20 && !(data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235);
+      if (ink) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    if (x1 < 0) return null;
+    const pad = 6, c = document.createElement("canvas");
+    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+    c.width = x1 - x0 + 1; c.height = y1 - y0 + 1;
+    c.getContext("2d").drawImage(src, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+    return { url: c.toDataURL("image/png"), w: c.width, h: c.height };
+  }
+
+  // ---------- Doctor details ----------
+  function loadDoctor() {
+    const d = store.get();
+    if (!d) { $("docDetails").open = true; return; }
+    DOC_FIELDS.forEach(k => { if (d[k] != null) $(k).value = d[k]; });
+    if (d.sig) { sigImage = d.sig; requestAnimationFrame(() => drawImageFit(d.sig)); }
+    $("savedNote").textContent = "· saved";
+  }
+  $("saveDoc").onclick = () => {
+    const d = {}; DOC_FIELDS.forEach(k => d[k] = $(k).value.trim());
+    const s = signatureDataURL(); d.sig = s ? s.url : null;
+    const ok = store.set(d);
+    $("savedNote").textContent = ok ? "· saved" : "· could not save (private browsing?)";
+    if (ok) $("docDetails").open = false;
+  };
+
+  // ---------- Medicines ----------
+  function renumber() { document.querySelectorAll("#meds .med").forEach((m, i) => m.querySelector(".med-num").textContent = "Medicine " + (i + 1)); }
+  function addMed() {
+    const node = $("medTpl").content.firstElementChild.cloneNode(true);
+    node.querySelector(".rm").onclick = () => { node.remove(); if (!document.querySelector("#meds .med")) addMed(); renumber(); };
+    $("meds").appendChild(node); renumber();
+    return node;
+  }
+  $("addMed").onclick = () => addMed().querySelector(".m-name").focus();
+
+  function today() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function fmtDate(iso) { if (!iso) return ""; const [y, m, d] = iso.split("-"); return d + "/" + m + "/" + y; }
+
+  $("newRx").onclick = () => {
+    ["pName","pAge","pDiag","advice","followUp"].forEach(k => $(k).value = "");
+    $("pGender").value = ""; $("pDate").value = today();
+    $("meds").innerHTML = ""; addMed(); $("err").textContent = ""; $("pName").focus();
+  };
+
+  // ---------- PDF ----------
+  function collect() {
+    const v = (id) => $(id).value.trim();
+    const meds = [...document.querySelectorAll("#meds .med")].map(m => ({
+      name: m.querySelector(".m-name").value.trim(), dose: m.querySelector(".m-dose").value.trim(),
+      freq: m.querySelector(".m-freq").value.trim(), dur: m.querySelector(".m-dur").value.trim(),
+      instr: m.querySelector(".m-instr").value.trim()
+    })).filter(m => m.name);
+    const doc = {}; DOC_FIELDS.forEach(k => doc[k] = v(k));
+    return { doc, name: v("pName"), age: v("pAge"), gender: v("pGender"), date: v("pDate") || today(),
+      diag: v("pDiag"), advice: v("advice"), followUp: v("followUp"), meds };
+  }
+
+  function buildPdf(d) {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const W = 210, M = 16, accent = [31, 95, 168], ink = [29, 36, 51], muted = [93, 102, 119];
+    let y = 18;
+
+    // Header
+    pdf.setTextColor(...accent); pdf.setFont("helvetica", "bold"); pdf.setFontSize(20);
+    pdf.text(d.doc.docName || "Doctor", M, y);
+    pdf.setTextColor(...ink); pdf.setFont("helvetica", "normal"); pdf.setFontSize(10);
+    if (d.doc.docQual) { y += 6; pdf.text(d.doc.docQual, M, y); }
+    if (d.doc.docReg) { y += 5; pdf.text("Reg. No.: " + d.doc.docReg, M, y); }
+    // Clinic block on the right
+    let ry = 14; pdf.setFontSize(10);
+    if (d.doc.clinicName) { pdf.setFont("helvetica", "bold"); pdf.text(d.doc.clinicName, W - M, ry, { align: "right" }); ry += 5; pdf.setFont("helvetica", "normal"); }
+    pdf.setTextColor(...muted); pdf.setFontSize(9);
+    if (d.doc.clinicAddr) { pdf.splitTextToSize(d.doc.clinicAddr, 80).forEach(l => { pdf.text(l, W - M, ry, { align: "right" }); ry += 4.5; }); }
+    const contact = [d.doc.clinicPhone && "Ph: " + d.doc.clinicPhone, d.doc.clinicEmail].filter(Boolean).join("  |  ");
+    if (contact) { pdf.text(contact, W - M, ry, { align: "right" }); ry += 4.5; }
+    y = Math.max(y, ry) + 4;
+    pdf.setDrawColor(...accent); pdf.setLineWidth(0.8); pdf.line(M, y, W - M, y); y += 8;
+
+    // Patient line
+    pdf.setTextColor(...ink); pdf.setFontSize(10.5);
+    const field = (label, val, x) => { pdf.setFont("helvetica", "bold"); pdf.text(label, x, y);
+      const lw = pdf.getTextWidth(label) + 1.5; pdf.setFont("helvetica", "normal"); pdf.text(val || "-", x + lw, y); };
+    field("Patient:", d.name, M);
+    field("Date:", fmtDate(d.date), 150);
+    y += 6.5;
+    field("Age:", d.age, M);
+    field("Gender:", d.gender, 60);
+    y += 4;
+    pdf.setDrawColor(...[217, 221, 229]); pdf.setLineWidth(0.3); pdf.line(M, y, W - M, y); y += 7;
+
+    if (d.diag) {
+      pdf.setFont("helvetica", "bold"); pdf.text("Provisional diagnosis:", M, y);
+      pdf.setFont("helvetica", "normal");
+      const lines = pdf.splitTextToSize(d.diag, W - 2 * M - 42);
+      pdf.text(lines, M + 42, y); y += lines.length * 5 + 4;
+    }
+
+    // Rx mark
+    pdf.setTextColor(...accent); pdf.setFont("times", "bolditalic"); pdf.setFontSize(26);
+    pdf.text("Rx", M, y + 7); y += 11;
+
+    pdf.autoTable({
+      startY: y, margin: { left: M, right: M, bottom: 50 },
+      head: [["#", "Medicine", "Dose", "Frequency", "Duration", "How to take"]],
+      body: d.meds.map((m, i) => [String(i + 1), m.name, m.dose, m.freq, m.dur, m.instr]),
+      theme: "grid",
+      styles: { font: "helvetica", fontSize: 10, textColor: ink, cellPadding: 2.5, lineColor: [217, 221, 229], lineWidth: 0.2, valign: "middle" },
+      headStyles: { fillColor: accent, textColor: 255, fontStyle: "bold" },
+      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 52, fontStyle: "bold" }, 2: { cellWidth: 22 }, 3: { cellWidth: 30 }, 4: { cellWidth: 22 } }
+    });
+    y = pdf.lastAutoTable.finalY + 8;
+
+    pdf.setTextColor(...ink); pdf.setFontSize(10.5);
+    const block = (label, text) => {
+      if (!text) return;
+      if (y > 240) { pdf.addPage(); y = 20; }
+      pdf.setFont("helvetica", "bold"); pdf.text(label, M, y); y += 5;
+      pdf.setFont("helvetica", "normal");
+      const lines = pdf.splitTextToSize(text, W - 2 * M); pdf.text(lines, M, y); y += lines.length * 5 + 3;
+    };
+    block("Advice:", d.advice);
+    block("Follow-up:", d.followUp);
+
+    // Signature block, anchored near the bottom of the last page
+    if (y > 245) { pdf.addPage(); }
+    const sig = signatureDataURL();
+    const sy = 262, sx = W - M;
+    if (sig) {
+      const maxW = 55, maxH = 20, s = Math.min(maxW / sig.w, maxH / sig.h);
+      const iw = sig.w * s, ih = sig.h * s;
+      pdf.addImage(sig.url, "PNG", sx - iw, sy - ih - 2, iw, ih);
+    }
+    pdf.setDrawColor(...ink); pdf.setLineWidth(0.3); pdf.line(sx - 60, sy, sx, sy);
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.setTextColor(...ink);
+    pdf.text(d.doc.docName || "", sx, sy + 5, { align: "right" });
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(...muted);
+    let ly = sy + 9.5;
+    if (d.doc.docQual) { pdf.text(d.doc.docQual, sx, ly, { align: "right" }); ly += 4.5; }
+    if (d.doc.docReg) { pdf.text("Reg. No.: " + d.doc.docReg, sx, ly, { align: "right" }); }
+
+    // Footer on every page
+    const n = pdf.getNumberOfPages();
+    for (let i = 1; i <= n; i++) {
+      pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(...muted);
+      pdf.setDrawColor(217, 221, 229); pdf.line(M, 284, W - M, 284);
+      pdf.text("This prescription is valid only with the doctor's signature.", M, 289);
+      if (n > 1) pdf.text("Page " + i + " of " + n, W - M, 289, { align: "right" });
+    }
+    return pdf;
+  }
+
+  $("genPdf").onclick = () => {
+    const d = collect(), missing = [];
+    if (!d.doc.docName) { $("docDetails").open = true; $("err").textContent = "Please add the doctor's name under Doctor & clinic details first."; $("docName").focus(); return; }
+    if (!d.name) missing.push("patient name"); if (!d.age) missing.push("age");
+    if (!d.gender) missing.push("gender"); if (!d.meds.length) missing.push("at least one medicine");
+    if (missing.length) { $("err").textContent = "Please add: " + missing.join(", ") + "."; return; }
+    if (!sigDirty) { $("err").textContent = "Tip: add your signature under Doctor & clinic details."; }
+    else $("err").textContent = "";
+    const pdf = buildPdf(d);
+    const safe = d.name.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "");
+    pdf.save("Prescription_" + safe + "_" + d.date + ".pdf");
+  };
+  window.__buildPdf = () => buildPdf(collect()); // used for testing
+
+  // ---------- Init ----------
+  $("pDate").value = today();
+  addMed();
+  sizeCanvas();
+  window.addEventListener("resize", sizeCanvas);
+  $("docDetails").addEventListener("toggle", () => { if ($("docDetails").open) sizeCanvas(); });
+  loadDoctor();
+
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
