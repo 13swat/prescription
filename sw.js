@@ -1,6 +1,6 @@
 // Offline support: cache the app shell, serve from cache, refresh in the background.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = "rx-v1";
+const VERSION = "rx-v2";
 const FILES = [
   "./", "index.html", "manifest.webmanifest",
   "vendor/jspdf-2.5.1.umd.min.js", "vendor/jspdf-autotable-3.8.2.min.js",
