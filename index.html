@@ -60,7 +60,10 @@
   canvas#sig { display: block; width: 100%; height: 140px; touch-action: none; }
   .hint { font-size: 12px; color: var(--muted); }
   .actions { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; display: flex; gap: 10px; flex-wrap: wrap; }
-  .err { color: var(--danger); font-size: 13px; min-height: 1em; }
+  .actions { border-top: 1px solid var(--line); align-items: center; }
+  .err { color: var(--danger); font-size: 13px; flex-basis: 100%; }
+  .err:empty { display: none; }
+  #openPdf { flex-basis: 100%; font-size: 13px; color: var(--accent); }
   #savedNote { font-size: 12px; color: var(--muted); }
 </style>
 </head>
@@ -123,10 +126,12 @@
     </div>
   </section>
 
-  <div class="err" id="err"></div>
   <div class="actions">
+    <div class="err" id="err" role="status" aria-live="polite"></div>
     <button type="button" class="primary" id="genPdf">Download PDF</button>
+    <button type="button" class="primary" id="sharePdf" hidden>Share PDF</button>
     <button type="button" id="newRx">New prescription</button>
+    <a id="openPdf" href="#" target="_blank" rel="noopener" hidden>Didn't download? Open the PDF</a>
   </div>
 </main>
 
@@ -259,7 +264,7 @@
   $("newRx").onclick = () => {
     ["pName","pAge","pDiag","advice","followUp"].forEach(k => $(k).value = "");
     $("pGender").value = ""; $("pDate").value = today();
-    $("meds").innerHTML = ""; addMed(); $("err").textContent = ""; $("pName").focus();
+    $("meds").innerHTML = ""; addMed(); $("err").textContent = ""; $("openPdf").hidden = true; $("pName").focus();
   };
 
   // ---------- PDF ----------
@@ -370,17 +375,59 @@
     return pdf;
   }
 
-  $("genPdf").onclick = () => {
+  // Validates the form and builds the PDF. Returns { blob, file, name } or null (message shown).
+  function makePdf() {
     const d = collect(), missing = [];
-    if (!d.doc.docName) { $("docDetails").open = true; $("err").textContent = "Please add the doctor's name under Doctor & clinic details first."; $("docName").focus(); return; }
-    if (!d.name) missing.push("patient name"); if (!d.age) missing.push("age");
-    if (!d.gender) missing.push("gender"); if (!d.meds.length) missing.push("at least one medicine");
-    if (missing.length) { $("err").textContent = "Please add: " + missing.join(", ") + "."; return; }
-    if (!sigDirty) { $("err").textContent = "Tip: add your signature under Doctor & clinic details."; }
-    else $("err").textContent = "";
+    const need = (ok, label, id) => { if (!ok) missing.push({ label, id }); };
+    need(d.doc.docName, "doctor's name (in Doctor & clinic details)", "docName");
+    need(d.name, "patient name", "pName"); need(d.age, "age", "pAge"); need(d.gender, "gender", "pGender");
+    need(d.meds.length, "at least one medicine name", null);
+    if (missing.length) {
+      $("err").textContent = "Please add: " + missing.map(m => m.label).join(", ") + ".";
+      const first = missing[0];
+      if (first.id === "docName") $("docDetails").open = true;
+      const el = first.id ? $(first.id) : document.querySelector("#meds .m-name");
+      el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus({ preventScroll: true });
+      return null;
+    }
+    $("err").textContent = sigDirty ? "" : "Tip: add your signature under Doctor & clinic details.";
     const pdf = buildPdf(d);
     const safe = d.name.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "");
-    pdf.save("Prescription_" + safe + "_" + d.date + ".pdf");
+    const name = "Prescription_" + safe + "_" + d.date + ".pdf";
+    const blob = pdf.output("blob");
+    let file = null; try { file = new File([blob], name, { type: "application/pdf" }); } catch (e) {}
+    return { blob, file, name };
+  }
+
+  let lastUrl = null;
+  function offerOpenLink(blob) {
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(blob);
+    $("openPdf").href = lastUrl; $("openPdf").hidden = false;
+  }
+
+  $("genPdf").onclick = () => {
+    let out;
+    try { out = makePdf(); } catch (e) { $("err").textContent = "Could not create the PDF: " + e.message; return; }
+    if (!out) return;
+    offerOpenLink(out.blob);
+    const a = document.createElement("a");
+    a.href = lastUrl; a.download = out.name; document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  // Share button: only shown where the phone/browser can share files (WhatsApp, Mail, Files, etc.).
+  const canShareFiles = (() => {
+    try { return !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.pdf", { type: "application/pdf" })] })); }
+    catch (e) { return false; }
+  })();
+  if (canShareFiles) $("sharePdf").hidden = false;
+  $("sharePdf").onclick = async () => {
+    let out;
+    try { out = makePdf(); } catch (e) { $("err").textContent = "Could not create the PDF: " + e.message; return; }
+    if (!out) return;
+    offerOpenLink(out.blob);
+    try { await navigator.share({ files: [out.file], title: out.name }); }
+    catch (e) { if (e.name !== "AbortError") $("err").textContent = "Sharing didn't work here — use \"Open the PDF\" below and share from there."; }
   };
   window.__buildPdf = () => buildPdf(collect()); // used for testing
 

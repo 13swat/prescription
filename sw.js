@@ -1,6 +1,6 @@
 // Offline support: cache the app shell, serve from cache, refresh in the background.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = "rx-v3";
+const VERSION = "rx-v4";
 const FILES = [
   "./", "index.html", "manifest.webmanifest",
   "vendor/jspdf-2.5.1.umd.min.js", "vendor/jspdf-autotable-3.8.2.min.js",
@@ -15,11 +15,17 @@ self.addEventListener("activate", (e) => {
 });
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((hit) => {
-    const net = fetch(e.request).then((res) => {
-      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
-      return res;
-    }).catch(() => hit);
-    return hit || net;
-  }));
+  // Pages: network first (so updates show up straight away), cache when offline.
+  // Everything else: cache first, refreshed in the background.
+  const isPage = e.request.mode === "navigate";
+  const fromNet = fetch(e.request).then((res) => {
+    if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
+    return res;
+  });
+  if (isPage) {
+    e.respondWith(fromNet.catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || caches.match("index.html"))));
+  } else {
+    e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fromNet));
+    e.waitUntil(fromNet.then(() => {}, () => {}));
+  }
 });
