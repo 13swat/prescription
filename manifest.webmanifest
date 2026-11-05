@@ -1,6 +1,6 @@
 {
   "name": "Prescription Maker",
-  "short_name": "Rx Maker",
+  "short_name": "Dr. Akshat",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
